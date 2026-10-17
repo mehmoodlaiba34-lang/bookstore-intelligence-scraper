@@ -42,14 +42,23 @@ BUDGET_GBP = 100
 # --------------------------------------------------------------------------
 # Mission 2 - capture one page
 # --------------------------------------------------------------------------
-def get_soup(url, session):
-    """Download a page and return a BeautifulSoup object (None if not found)."""
-    response = session.get(url, headers=HEADERS, timeout=20)
-    if response.status_code == 404:
-        return None
-    response.raise_for_status()
-    response.encoding = "utf-8"          # avoids the 'Â£' encoding glitch on prices
-    return BeautifulSoup(response.text, "html.parser")
+def get_soup(url, session, retries=5):
+    """Download a page and return a BeautifulSoup object (None if not found).
+    Retries automatically on slow/failed connections."""
+    for attempt in range(1, retries + 1):
+        try:
+            response = session.get(url, headers=HEADERS, timeout=60)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            response.encoding = "utf-8"      # avoids the 'Â£' encoding glitch on prices
+            return BeautifulSoup(response.text, "html.parser")
+        except requests.exceptions.RequestException as err:
+            if attempt == retries:
+                raise
+            wait = attempt * 3
+            print(f"  Connection problem ({type(err).__name__}). Retry {attempt}/{retries - 1} in {wait}s...")
+            time.sleep(wait)
 
 
 def parse_book(card, page_url):
